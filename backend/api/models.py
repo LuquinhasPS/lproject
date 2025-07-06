@@ -1,20 +1,40 @@
 # api/models.py
 
 from django.db import models
+from django.contrib.auth.models import User # <-- IMPORTAR ESTA LINHA
 
-# Os modelos Cliente e Projeto permanecem os mesmos...
+
 class Cliente(models.Model):
-    nome = models.CharField(max_length=100)
+    nome = models.CharField(max_length=100, unique=True)
     data_criacao = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.nome
 
+class MembroProjeto(models.Model):
+    class Papel(models.TextChoices):
+        ADMIN = 'ADMIN', 'Administrador'
+        EDITOR = 'EDITOR', 'Editor'
+        VIEWER = 'VIEWER', 'Visualizador'
+
+    projeto = models.ForeignKey('Projeto', on_delete=models.CASCADE, related_name='adesoes')
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='adesoes')
+    papel = models.CharField(max_length=10, choices=Papel.choices, default=Papel.EDITOR)
+
+    class Meta:
+        unique_together = ('projeto', 'usuario')
+
+    def __str__(self):
+        return f"{self.usuario.username} como {self.get_papel_display()} em '{self.projeto.codigo_tag}'"
+
+
 class Projeto(models.Model):
     cliente = models.ForeignKey(Cliente, related_name='projetos', on_delete=models.CASCADE)
-    codigo_tag = models.CharField(max_length=200, unique=True, help_text="Ex: CE023913_500_37 - NOME")
+    codigo_tag = models.CharField(max_length=200, unique=True)
     nome_detalhado = models.CharField(max_length=300, blank=True)
     data_criacao = models.DateTimeField(auto_now_add=True)
+    
+    membros = models.ManyToManyField(User, through=MembroProjeto, related_name='projetos_participados')
 
     def __str__(self):
         return self.codigo_tag

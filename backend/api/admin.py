@@ -1,7 +1,9 @@
-# api/admin.py
-
 from django.contrib import admin
-from .models import Cliente, Projeto, Tarefa
+from .models import Cliente, Projeto, Tarefa, MembroProjeto
+
+class MembroProjetoInline(admin.TabularInline):
+    model = MembroProjeto
+    extra = 1
 
 class SubtarefaInline(admin.TabularInline):
     """Permite adicionar subtarefas diretamente na página de uma tarefa pai."""
@@ -31,6 +33,7 @@ class ProjetoAdmin(admin.ModelAdmin):
     list_display = ('codigo_tag', 'cliente', 'data_criacao')
     list_filter = ('cliente',)
     search_fields = ('codigo_tag',)
+    inlines = [MembroProjetoInline]
 
 
 @admin.register(Cliente)
