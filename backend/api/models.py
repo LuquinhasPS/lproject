@@ -33,7 +33,7 @@ class Projeto(models.Model):
     codigo_tag = models.CharField(max_length=200, unique=True)
     nome_detalhado = models.CharField(max_length=300, blank=True)
     data_criacao = models.DateTimeField(auto_now_add=True)
-    
+    data_prazo = models.DateField(null=True, blank=True)
     membros = models.ManyToManyField(User, through=MembroProjeto, related_name='projetos_participados')
 
     def __str__(self):
@@ -60,11 +60,22 @@ class Tarefa(models.Model):
 
     descricao = models.TextField()
     concluida = models.BooleanField(default=False)
-    data_limite = models.DateField(null=True, blank=True)
+    data_prazo = models.DateField(null=True, blank=True)
     data_criacao = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         if self.tarefa_pai:
             return f"Subtarefa de '{self.tarefa_pai.descricao[:20]}...': {self.descricao[:30]}"
         return f"Tarefa de '{self.projeto.codigo_tag}': {self.descricao[:30]}"
+    
+    def save(self, *args, **kwargs):
+        """
+        Garante que, ao salvar, toda subtarefa tenha uma referência
+        direta ao projeto de sua tarefa-pai.
+        """
+        if self.tarefa_pai and not self.projeto:
+            self.projeto = self.tarefa_pai.projeto
+
+        super().save(*args, **kwargs)
+    
 

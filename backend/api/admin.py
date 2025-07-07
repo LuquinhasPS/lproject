@@ -20,8 +20,8 @@ class SubtarefaInline(admin.TabularInline):
 @admin.register(Tarefa)
 class TarefaAdmin(admin.ModelAdmin):
     """Configuração da visualização de Tarefas no Admin."""
-    list_display = ('descricao', 'projeto', 'tarefa_pai', 'concluida', 'data_limite')
-    list_filter = ('concluida', 'data_limite', 'projeto')
+    list_display = ('descricao', 'projeto', 'tarefa_pai', 'concluida', 'data_prazo')
+    list_filter = ('concluida', 'data_prazo', 'projeto')
     search_fields = ('descricao', 'projeto__codigo_tag')
 
     # Adiciona o formulário de subtarefas na página de edição de uma tarefa
