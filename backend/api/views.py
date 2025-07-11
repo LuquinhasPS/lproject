@@ -16,24 +16,20 @@ class ClienteViewSet(viewsets.ModelViewSet):
     def get_serializer_context(self):
         return {'request': self.request}
 
+
 class ProjetoViewSet(viewsets.ModelViewSet):
     serializer_class = ProjetoSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Esta linha está correta e busca os projetos do usuário
-        return self.request.user.projetos_participados.all().order_by('-data_criacao')
+        return self.request.user.projetos_participados.all().order_by('-data_criacao').distinct()
 
     def perform_create(self, serializer):
+        # Simplificando a criação de membro
         projeto = serializer.save()
         projeto.membros.add(self.request.user, through_defaults={'papel': 'ADMIN'})
 
-    # ADICIONE ESTE MÉTODO PARA CORRIGIR O ERRO 500
     def get_serializer_context(self):
-        """
-        Garante que o serializer tenha acesso ao objeto de requisição,
-        necessário para o campo 'is_member'.
-        """
         return {'request': self.request}
 
 
