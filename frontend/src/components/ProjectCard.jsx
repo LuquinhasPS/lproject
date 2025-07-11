@@ -3,9 +3,9 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    Card, CardContent, CardActionArea, Box, Typography, List, ListItem,
+    Card, CardContent, Box, Typography, List, ListItem,
     ListItemIcon, ListItemText, Checkbox, IconButton, Button, TextField, Chip,
-    Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip
+    Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip, Collapse
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -15,59 +15,21 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import AddIcon from '@mui/icons-material/Add';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import TaskAltIcon from '@mui/icons-material/TaskAlt';
-import EventBusyIcon from '@mui/icons-material/EventBusy';
 import NewTaskForm from './NewTaskForm';
 import { getPriorityInfo } from '../utils/priority';
 
-// As props recebidas da HomePage
-function ProjectCard({ project, onTaskToggle, onTaskEdit, onTaskDelete, onTaskAdd, onProjectDelete, onProjectUpdate }) {
+function ProjectCard({ project, onProjectUpdate, onProjectDelete, onTaskToggle, onTaskEdit, onTaskDelete, onTaskAdd }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [replyingTo, setReplyingTo] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const projectPriorityInfo = getPriorityInfo(project.data_prazo);
-    // --- NOVOS STATES PARA O MENU E EDIÇÃO DO PROJETO ---
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [menuAnchorEl, setMenuAnchorEl] = useState(null);
-    const [isEditing, setIsEditing] = useState(false);
-    const [editData, setEditData] = useState({
+    const [isEditingProject, setIsEditingProject] = useState(false);
+    const [editProjectData, setEditProjectData] = useState({
         codigo_tag: project.codigo_tag,
         nome_detalhado: project.nome_detalhado
     });
 
-    // --- LÓGICA PARA OS NOVOS BALÕES DE INFORMAÇÃO ---
-    const projectStats = useMemo(() => {
-        if (!project.tarefas || project.tarefas.length === 0) {
-            return { completedTasks: 0, totalTasks: 0, nearestDeadline: null };
-        }
-        const completedTasks = project.tarefas.filter(t => t.concluida).length;
-        const totalTasks = project.tarefas.length;
-        const upcomingDeadlines = project.tarefas
-            .filter(t => !t.concluida && t.data_prazo)
-            .map(t => new Date(t.data_prazo));
-        const nearestDeadline = upcomingDeadlines.length > 0
-            ? new Date(Math.min.apply(null, upcomingDeadlines))
-            : null;
-        return { completedTasks, totalTasks, nearestDeadline };
-    }, [project.tarefas]);
-    const nearestDeadlineInfo = getPriorityInfo(projectStats.nearestDeadline);
-    // --- Funções do menu de projeto ---
-    const handleMenuOpen = (event) => {
-        event.stopPropagation();
-        setMenuAnchorEl(event.currentTarget);
-    };
-    const handleMenuClose = () => setMenuAnchorEl(null);
-    const handleEditClick = () => {
-        setIsEditing(true);
-        handleMenuClose();
-    };
-    const handleDeleteClick = () => {
-        onProjectDelete();
-        handleMenuClose();
-    };
-    const handleUpdateProject = () => {
-        onProjectUpdate(editData);
-        setIsEditing(false);
-    };
+    const projectPriorityInfo = getPriorityInfo(project.data_prazo);
 
     const taskTree = useMemo(() => {
         if (!project?.tarefas) return [];
@@ -90,34 +52,24 @@ function ProjectCard({ project, onTaskToggle, onTaskEdit, onTaskDelete, onTaskAd
     const handleTaskAdded = (newTask) => {
         onTaskAdd(newTask, project.id);
         setReplyingTo(null);
-        setIsModalOpen(false);
+        setIsTaskModalOpen(false);
     };
 
-    // Componente interno para renderizar cada tarefa
+    const handleMenuOpen = (event) => { event.stopPropagation(); setMenuAnchorEl(event.currentTarget); };
+    const handleMenuClose = () => setMenuAnchorEl(null);
+    const handleEditClick = () => { setIsEditingProject(true); handleMenuClose(); };
+    const handleDeleteClick = () => { onProjectDelete(); handleMenuClose(); };
+    const handleUpdateProject = () => { onProjectUpdate(editProjectData); setIsEditingProject(false); };
+
     const TaskItem = ({ task, level = 0 }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [editText, setEditText] = useState(task.descricao);
         const taskPriorityInfo = getPriorityInfo(task.data_prazo);
-        const [anchorEl, setAnchorEl] = useState(null);
-        const isMenuOpen = Boolean(anchorEl);
+        const [taskMenuAnchor, setTaskMenuAnchor] = useState(null);
+        const isTaskMenuOpen = Boolean(taskMenuAnchor);
 
-        const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
-        const handleMenuClose = () => setAnchorEl(null);
-
-        const handleEditClick = () => {
-            setIsEditing(true);
-            handleMenuClose();
-        };
-
-        const handleDeleteClick = () => {
-            onTaskDelete(task.id, project.id);
-            handleMenuClose();
-        };
-
-        const handleAddSubtaskClick = () => {
-            setReplyingTo(task.id);
-            handleMenuClose();
-        };
+        const handleTaskMenuClick = (event) => { event.stopPropagation(); setTaskMenuAnchor(event.currentTarget); };
+        const handleTaskMenuClose = () => setTaskMenuAnchor(null);
 
         const handleSaveEdit = () => {
             if (editText.trim()) {
@@ -137,7 +89,7 @@ function ProjectCard({ project, onTaskToggle, onTaskEdit, onTaskDelete, onTaskAd
                                 <IconButton edge="end" title="Cancelar" onClick={() => setIsEditing(false)}><CancelIcon /></IconButton>
                             </Box>
                         ) : (
-                            <IconButton edge="end" title="Opções" onClick={handleMenuClick}><MoreVertIcon /></IconButton>
+                            <IconButton edge="end" title="Opções da Tarefa" onClick={handleTaskMenuClick}><MoreVertIcon /></IconButton>
                         )
                     }
                 >
@@ -149,10 +101,10 @@ function ProjectCard({ project, onTaskToggle, onTaskEdit, onTaskDelete, onTaskAd
                     )}
                     {taskPriorityInfo && !isEditing && <Chip label={taskPriorityInfo.label} color={taskPriorityInfo.color} size="small" sx={{ ml: 2 }}/>}
                 </ListItem>
-                <Menu anchorEl={anchorEl} open={isMenuOpen} onClose={handleMenuClose}>
-                    <MenuItem onClick={handleAddSubtaskClick}><ListItemIcon><AddCircleOutlineIcon fontSize="small" /></ListItemIcon>Adicionar Subtarefa</MenuItem>
-                    <MenuItem onClick={handleEditClick}><ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>Editar</MenuItem>
-                    <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}><ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>Deletar</MenuItem>
+                <Menu anchorEl={taskMenuAnchor} open={isTaskMenuOpen} onClose={handleTaskMenuClose}>
+                    <MenuItem onClick={() => { setReplyingTo(task.id); handleTaskMenuClose(); }}><ListItemIcon><AddCircleOutlineIcon fontSize="small" /></ListItemIcon>Adicionar Subtarefa</MenuItem>
+                    <MenuItem onClick={() => { setIsEditing(true); handleTaskMenuClose(); }}><ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>Editar</MenuItem>
+                    <MenuItem onClick={() => { onTaskDelete(task.id, project.id); handleTaskMenuClose(); }} sx={{ color: 'error.main' }}><ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>Deletar</MenuItem>
                 </Menu>
                 {replyingTo === task.id && (
                     <Box style={{ paddingLeft: `${(level + 1) * 24 + 16}px` }}>
@@ -161,111 +113,62 @@ function ProjectCard({ project, onTaskToggle, onTaskEdit, onTaskDelete, onTaskAd
                 )}
                 {task.children?.length > 0 && (
                     <List component="div" disablePadding>
-                        {task.children.map(child => <TaskItem key={child.id} task={child} level={level + 1} />)}
+                        {renderTaskTree(task.children, level + 1)}
                     </List>
                 )}
             </React.Fragment>
         );
     };
     
-    // Função de renderização que passa as props para o primeiro nível de tarefas
-    const renderTaskTree = (tasks) => {
-        return tasks.map(task => (
-            <TaskItem key={task.id} task={task} />
-        ));
-    };
+    const renderTaskTree = (tasks, level = 0) => tasks.map(task => <TaskItem key={task.id} task={task} level={level} />);
 
     return (
         <>
-            <Card sx={{ mb: 3 }}>
-                <CardContent sx={{ position: 'relative' }}>
-                    <IconButton
-                        aria-label="opções"
-                        onClick={handleMenuOpen}
-                        sx={{ position: 'absolute', top: 8, right: 8 }}
-                    >
-                        <MoreVertIcon />
-                    </IconButton>
-                    <Box onClick={() => setIsExpanded(!isExpanded)} sx={{ cursor: 'pointer' }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pr: '40px' }}>
-                            <Typography variant="h5" component="div">{project.codigo_tag}</Typography>
+            <Card sx={{ mb: 2 }}>
+                <Box sx={{ p: 2, position: 'relative' }}>
+                    <IconButton aria-label="opções do projeto" onClick={handleMenuOpen} sx={{ position: 'absolute', top: 4, right: 4 }}><MoreVertIcon /></IconButton>
+                    <Box onClick={() => setIsExpanded(!isExpanded)} sx={{ cursor: 'pointer', pr: '40px' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="h6">{project.codigo_tag}</Typography>
+                            {projectPriorityInfo && (<Chip label={projectPriorityInfo.label} color={projectPriorityInfo.color} size="small" />)}
                         </Box>
-                        <Typography color="text.secondary" sx={{ mb: 1 }}>{project.nome_detalhado}</Typography>
-                        {/* --- INÍCIO DOS NOVOS BALÕES (CHIPS) --- */}
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                            {project.tarefas && project.tarefas.length > 0 && (
-                                <Tooltip title="Tarefas Concluídas">
-                                    <Chip
-                                        icon={<TaskAltIcon />}
-                                        label={`${projectStats.completedTasks} / ${projectStats.totalTasks}`}
-                                        size="small"
-                                        color={projectStats.completedTasks === projectStats.totalTasks ? 'success' : 'default'}
-                                    />
-                                </Tooltip>
-                            )}
-                            {nearestDeadlineInfo && (
-                                <Tooltip title="Prazo Mais Próximo">
-                                    <Chip
-                                        icon={<EventBusyIcon />}
-                                        label={nearestDeadlineInfo.label}
-                                        color={nearestDeadlineInfo.color}
-                                        size="small"
-                                    />
-                                </Tooltip>
-                            )}
-                        </Box>
-                        {/* --- FIM DOS NOVOS BALÕES (CHIPS) --- */}
+                        <Typography color="text.secondary" variant="body2">{project.nome_detalhado}</Typography>
                     </Box>
-                </CardContent>
-                {isExpanded && (
+                </Box>
+                <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                     <CardContent sx={{ borderTop: '1px solid #eee' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="h6">Tarefas</Typography>
+                            <Typography variant="h6" sx={{ fontSize: '1rem' }}>Tarefas</Typography>
                             <Box>
-                                <Tooltip title="Adicionar Tarefa Principal">
-                                    <IconButton onClick={() => setIsModalOpen(true)}><AddIcon /></IconButton>
-                                </Tooltip>
-                                <Tooltip title="Abrir Página do Projeto">
-                                    <IconButton component={Link} to={`/projetos/${project.id}`} size="small"><OpenInNewIcon fontSize="inherit" /></IconButton>
-                                </Tooltip>
+                                <Tooltip title="Adicionar Tarefa Principal"><IconButton size="small" onClick={(e) => { e.stopPropagation(); setIsTaskModalOpen(true); }}><AddIcon /></IconButton></Tooltip>
+                                <Tooltip title="Abrir Página Dedicada"><IconButton component={Link} to={`/projetos/${project.id}`} size="small"><OpenInNewIcon fontSize="inherit" /></IconButton></Tooltip>
                             </Box>
                         </Box>
-                        {taskTree.length > 0 ? (
-                            <List dense>{renderTaskTree(taskTree)}</List>
-                        ) : (
-                            !isModalOpen && <Typography variant="body2" sx={{ mt: 1 }}>Este projeto ainda não possui tarefas.</Typography>
-                        )}
+                        {taskTree.length > 0 ? <List dense>{renderTaskTree(taskTree)}</List> : <Typography variant="body2" sx={{ mt: 1 }}>Sem tarefas.</Typography>}
                     </CardContent>
-                )}
+                </Collapse>
             </Card>
 
-            {/* --- MENU E DIALOG PARA O PROJETO --- */}
             <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={handleMenuClose}>
                 <MenuItem onClick={handleEditClick}><ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>Editar Projeto</MenuItem>
                 <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}><ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>Deletar Projeto</MenuItem>
             </Menu>
 
-            <Dialog open={isEditing} onClose={() => setIsEditing(false)} fullWidth>
-                <DialogTitle>Editar Projeto</DialogTitle>
+            <Dialog open={isEditingProject} onClose={() => setIsEditingProject(false)} fullWidth>
+                <DialogTitle>Editar Projeto "{project.codigo_tag}"</DialogTitle>
                 <DialogContent>
-                    <TextField autoFocus margin="dense" label="Código / Tag" type="text" fullWidth variant="outlined" value={editData.codigo_tag} onChange={(e) => setEditData({...editData, codigo_tag: e.target.value})} />
-                    <TextField margin="dense" label="Nome Detalhado" type="text" fullWidth variant="outlined" value={editData.nome_detalhado} onChange={(e) => setEditData({...editData, nome_detalhado: e.target.value})} />
+                    <TextField autoFocus margin="dense" label="Código / Tag" type="text" fullWidth variant="outlined" value={editProjectData.codigo_tag} onChange={(e) => setEditProjectData({...editProjectData, codigo_tag: e.target.value})} sx={{mt:2}}/>
+                    <TextField margin="dense" label="Nome Detalhado" type="text" fullWidth variant="outlined" value={editProjectData.nome_detalhado} onChange={(e) => setEditProjectData({...editProjectData, nome_detalhado: e.target.value})} />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setIsEditing(false)}>Cancelar</Button>
+                    <Button onClick={() => setIsEditingProject(false)}>Cancelar</Button>
                     <Button onClick={handleUpdateProject} variant="contained">Salvar</Button>
                 </DialogActions>
             </Dialog>
 
-            <Dialog open={isModalOpen} onClose={() => setIsModalOpen(false)} fullWidth maxWidth="sm">
-                <DialogTitle>Nova Tarefa Principal para "{project.codigo_tag}"</DialogTitle>
-                <DialogContent>
-                    <NewTaskForm
-                        projectId={project.id}
-                        onTaskAdded={handleTaskAdded}
-                        onCancel={() => setIsModalOpen(false)}
-                    />
-                </DialogContent>
+            <Dialog open={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)}>
+                <DialogTitle>Nova Tarefa em "{project.codigo_tag}"</DialogTitle>
+                <DialogContent><NewTaskForm projectId={project.id} onTaskAdded={handleTaskAdded} onCancel={() => setIsTaskModalOpen(false)} /></DialogContent>
             </Dialog>
         </>
     );
