@@ -181,18 +181,36 @@ function HomePage() {
         } catch (error) { console.error("Erro ao editar a tarefa:", error); }
     };
 
-    const handleDeleteTask = async (taskId, projectId) => {
-        if (!window.confirm("Tem certeza que deseja deletar esta tarefa?")) return;
-        try {
-            await apiClient.delete(`/tarefas/${taskId}/`);
-            setClients(currentClients => currentClients.map(c => {
-                if (c.id === projectId) {
-                    return { ...c, tarefas: c.tarefas.filter(t => t.id !== taskId && t.tarefa_pai !== taskId) };
-                }
-                return c;
-            }));
-        } catch (error) { console.error("Erro ao deletar a tarefa:", error); }
-    };
+// Em frontend/src/pages/HomePage.jsx
+
+const handleDeleteTask = async (taskId, projectId) => {
+    if (!window.confirm("Tem certeza que deseja deletar esta tarefa?")) return;
+    try {
+        await apiClient.delete(`/tarefas/${taskId}/`);
+
+        setClients(currentClients =>
+            currentClients.map(client => ({
+                ...client,
+                // Mapeia cada projeto dentro de cada cliente
+                projetos: client.projetos.map(p => {
+                    // Se este não for o projeto da tarefa deletada, não faz nada
+                    if (p.id !== projectId) {
+                        return p;
+                    }
+
+                    // Se for o projeto correto, retorna o projeto com a lista de tarefas filtrada
+                    // A CORREÇÃO ESTÁ AQUI: (p.tarefas || []) garante que nunca chamaremos .filter() em undefined
+                    const updatedTasks = (p.tarefas || []).filter(t => t.id !== taskId && t.tarefa_pai !== taskId);
+                    
+                    return { ...p, tarefas: updatedTasks };
+                })
+            }))
+        );
+    } catch (error) {
+        console.error("Erro ao deletar a tarefa:", error);
+        alert("Não foi possível deletar a tarefa.");
+    }
+};
 
     if (loading) return <CircularProgress />;
     if (error) return <Alert severity="error">{error}</Alert>;

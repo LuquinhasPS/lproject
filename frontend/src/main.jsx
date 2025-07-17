@@ -3,16 +3,14 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider, createBrowserRouter } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext.jsx';
 
-import App from './App.jsx';
+import AppLayout from './components/AppLayout.jsx';
 import HomePage from './pages/HomePage.jsx';
-import ClientsPage from './pages/ClientsPage.jsx';
-import ClientDetailPage from './pages/ClientDetailPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx'; // <-- 1. IMPORTAR
+import ClientDetailPage from './pages/ClientDetailPage.jsx';
 import ProjectDetailPage from './pages/ProjectDetailPage.jsx';
-import AppLayout from './components/AppLayout.jsx'; // <-- Importe o novo layout
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 const router = createBrowserRouter([
   {
@@ -23,12 +21,11 @@ const router = createBrowserRouter([
     path: "/",
     element: <ProtectedRoute />,
     children: [
-      // O elemento agora é o AppLayout
       {
         element: <AppLayout />,
         children: [
           { path: "/", element: <HomePage /> },
-          { path: "clientes", element: <ClientsPage /> },
+          { path: "clientes", element: <ClientDetailPage /> }, // Supondo que você tenha uma página de lista
           { path: "clientes/:clientId", element: <ClientDetailPage /> },
           { path: "projetos/:projectId", element: <ProjectDetailPage /> },
         ]
@@ -37,9 +34,9 @@ const router = createBrowserRouter([
   },
 ]);
 
-
-
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// A renderização final SEM o StrictMode
 root.render(
   <AuthProvider>
     <RouterProvider router={router} />

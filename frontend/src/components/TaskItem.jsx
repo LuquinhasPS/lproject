@@ -20,23 +20,11 @@ function TaskItem({ task, level = 0, onToggle, onEdit, onDelete, onAddSubtaskCli
     const isMenuOpen = Boolean(anchorEl);
     const taskPriorityInfo = getPriorityInfo(task.data_prazo);
 
-    const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
+    const handleMenuClick = (event) => { event.stopPropagation(); setAnchorEl(event.currentTarget); };
     const handleMenuClose = () => setAnchorEl(null);
-
-    const handleEditClick = () => {
-        setIsEditing(true);
-        handleMenuClose();
-    };
-
-    const handleDeleteClick = () => {
-        onDelete(task.id);
-        handleMenuClose();
-    };
-
-    const handleAddSubtaskClick = () => {
-        onAddSubtaskClick(task.id);
-        handleMenuClose();
-    };
+    const handleEditClick = () => { setIsEditing(true); handleMenuClose(); };
+    const handleDeleteClick = () => { onDelete(task.id); handleMenuClose(); };
+    const handleAddSubtaskClick = () => { onAddSubtaskClick(task.id); handleMenuClose(); };
 
     const handleSaveEdit = () => {
         if (editText.trim()) {
@@ -48,17 +36,17 @@ function TaskItem({ task, level = 0, onToggle, onEdit, onDelete, onAddSubtaskCli
     return (
         <>
             <ListItem
-                style={{ paddingLeft: `${level * 24 + 16}px`, backgroundColor: isEditing ? '#f0f3ff' : 'transparent' }}
+                style={{ paddingLeft: `${level * 24 + 16}px` }}
                 secondaryAction={
                     isEditing ? (
                         <Box sx={{ display: 'flex' }}>
-                            <IconButton edge="end" title="Salvar" onClick={handleSaveEdit}><SaveIcon /></IconButton>
-                            <IconButton edge="end" title="Cancelar" onClick={() => setIsEditing(false)}><CancelIcon /></IconButton>
+                            <IconButton title="Salvar" onClick={handleSaveEdit}><SaveIcon /></IconButton>
+                            <IconButton title="Cancelar" onClick={() => setIsEditing(false)}><CancelIcon /></IconButton>
                         </Box>
                     ) : (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             {taskPriorityInfo && <Chip label={taskPriorityInfo.label} color={taskPriorityInfo.color} size="small" />}
-                            <IconButton edge="end" title="Opções" onClick={handleMenuClick}><MoreVertIcon /></IconButton>
+                            <IconButton title="Opções" onClick={handleMenuClick}><MoreVertIcon /></IconButton>
                         </Box>
                     )
                 }
@@ -67,19 +55,9 @@ function TaskItem({ task, level = 0, onToggle, onEdit, onDelete, onAddSubtaskCli
                     <Checkbox edge="start" checked={task.concluida} onChange={() => onToggle(task)} />
                 </ListItemIcon>
                 {isEditing ? (
-                    <TextField
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        variant="standard"
-                        fullWidth
-                        autoFocus
-                        onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
-                    />
+                    <TextField value={editText} onChange={(e) => setEditText(e.target.value)} variant="standard" fullWidth autoFocus onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()} />
                 ) : (
-                    <ListItemText
-                        primary={task.descricao}
-                        style={{ textDecoration: task.concluida ? 'line-through' : 'none', color: task.concluida ? 'grey' : 'inherit' }}
-                    />
+                    <ListItemText primary={task.descricao} style={{ textDecoration: task.concluida ? 'line-through' : 'none' }} />
                 )}
             </ListItem>
             <Menu anchorEl={anchorEl} open={isMenuOpen} onClose={handleMenuClose}>
