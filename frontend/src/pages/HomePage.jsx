@@ -41,34 +41,50 @@ function HomePage() {
         fetchData();
     }, []);
 
+    // --- FUNÇÃO onDragEnd FINAL E COMPLETA ---
     const onDragEnd = (result) => {
-        const { source, destination, draggableId } = result;
+        const { source, destination, draggableId, type } = result;
+
         if (!destination) return;
-
-        const projectId = parseInt(draggableId.replace('project-', ''));
-        const sourceClientId = parseInt(source.droppableId.replace('client-', ''));
-        const destinationClientId = parseInt(destination.droppableId.replace('client-', ''));
-        let draggedProject;
-
-        const newClients = [...clients];
-        const sourceClient = newClients.find(c => c.id === sourceClientId);
-        const destinationClient = newClients.find(c => c.id === destinationClientId);
-
-        if (source.droppableId === destination.droppableId) {
-            const reorderedProjects = Array.from(sourceClient.projetos);
-            const [movedItem] = reorderedProjects.splice(source.index, 1);
-            reorderedProjects.splice(destination.index, 0, movedItem);
-            sourceClient.projetos = reorderedProjects;
-        } else {
-            const sourceProjects = Array.from(sourceClient.projetos);
-            [draggedProject] = sourceProjects.splice(source.index, 1);
-            const destinationProjects = Array.from(destinationClient.projetos);
-            destinationProjects.splice(destination.index, 0, draggedProject);
-            sourceClient.projetos = sourceProjects;
-            destinationClient.projetos = destinationProjects;
-            apiClient.patch(`/projetos/${projectId}/`, { cliente: destinationClientId }).catch(() => alert("Erro ao salvar a mudança."));
+        if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+        
+        // LÓGICA PARA ARRASTAR COLUNAS DE CLIENTES
+        if (type === 'COLUMN') {
+            const newClientsOrder = Array.from(clients);
+            const [reorderedItem] = newClientsOrder.splice(source.index, 1);
+            newClientsOrder.splice(destination.index, 0, reorderedItem);
+            setClients(newClientsOrder); // Atualiza o estado com a nova ordem das colunas
+            return;
         }
-        setClients(newClients);
+
+        // LÓGICA PARA ARRASTAR CARDS DE PROJETO
+        if (type === 'PROJECT') {
+            const startClient = clients.find(c => `client-${c.id}` === source.droppableId);
+            const finishClient = clients.find(c => `client-${c.id}` === destination.droppableId);
+
+            if (startClient === finishClient) { // Reordenar na mesma coluna
+                const newProjects = Array.from(startClient.projetos);
+                const [reorderedItem] = newProjects.splice(source.index, 1);
+                newProjects.splice(destination.index, 0, reorderedItem);
+                const newClients = clients.map(c => c.id === startClient.id ? { ...c, projetos: newProjects } : c);
+                setClients(newClients);
+            } else { // Mover entre colunas
+                const startProjects = Array.from(startClient.projetos);
+                const [draggedProject] = startProjects.splice(source.index, 1);
+                const finishProjects = Array.from(finishClient.projetos);
+                finishProjects.splice(destination.index, 0, draggedProject);
+                
+                const newClientsState = clients.map(c => {
+                    if (c.id === startClient.id) return { ...c, projetos: startProjects };
+                    if (c.id === finishClient.id) return { ...c, projetos: finishProjects };
+                    return c;
+                });
+                setClients(newClientsState);
+                
+                const projectId = parseInt(draggableId.replace('project-', ''));
+                apiClient.patch(`/projetos/${projectId}/`, { cliente: finishClient.id });
+            }
+        }
     };
 
     const handleClientAdded = (newClient) => { setClients(c => [...c, { ...newClient, projetos: [] }]); setIsClientModalOpen(false); };
