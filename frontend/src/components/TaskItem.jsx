@@ -22,9 +22,21 @@ function TaskItem({ task, level = 0, onToggle, onEdit, onDelete, onAddSubtaskCli
 
     const handleMenuClick = (event) => { event.stopPropagation(); setAnchorEl(event.currentTarget); };
     const handleMenuClose = () => setAnchorEl(null);
-    const handleEditClick = () => { setIsEditing(true); handleMenuClose(); };
-    const handleDeleteClick = () => { onDelete(task.id); handleMenuClose(); };
-    const handleAddSubtaskClick = () => { onAddSubtaskClick(task.id); handleMenuClose(); };
+
+    const handleEditClick = () => {
+        setIsEditing(true);
+        handleMenuClose();
+    };
+
+    const handleDeleteClick = () => {
+        onDelete(task.id);
+        handleMenuClose();
+    };
+
+    const handleAddSubtaskClick = () => {
+        onAddSubtaskClick(task.id);
+        handleMenuClose();
+    };
 
     const handleSaveEdit = () => {
         if (editText.trim()) {
@@ -36,7 +48,7 @@ function TaskItem({ task, level = 0, onToggle, onEdit, onDelete, onAddSubtaskCli
     return (
         <>
             <ListItem
-                style={{ paddingLeft: `${level * 24 + 16}px` }}
+                style={{ paddingLeft: `${level * 24 + 16}px`, backgroundColor: isEditing ? '#f0f3ff' : 'transparent' }}
                 secondaryAction={
                     isEditing ? (
                         <Box sx={{ display: 'flex' }}>
@@ -55,9 +67,19 @@ function TaskItem({ task, level = 0, onToggle, onEdit, onDelete, onAddSubtaskCli
                     <Checkbox edge="start" checked={task.concluida} onChange={() => onToggle(task)} />
                 </ListItemIcon>
                 {isEditing ? (
-                    <TextField value={editText} onChange={(e) => setEditText(e.target.value)} variant="standard" fullWidth autoFocus onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()} />
+                    <TextField
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        variant="standard"
+                        fullWidth
+                        autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
+                    />
                 ) : (
-                    <ListItemText primary={task.descricao} style={{ textDecoration: task.concluida ? 'line-through' : 'none' }} />
+                    <ListItemText
+                        primary={task.descricao}
+                        style={{ textDecoration: task.concluida ? 'line-through' : 'none', color: task.concluida ? 'grey' : 'inherit' }}
+                    />
                 )}
             </ListItem>
             <Menu anchorEl={anchorEl} open={isMenuOpen} onClose={handleMenuClose}>

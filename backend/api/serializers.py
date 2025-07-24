@@ -2,6 +2,21 @@
 
 from rest_framework import serializers
 from .models import Cliente, Projeto, Tarefa, MembroProjeto
+from django.contrib.auth.models import User # Adicione este import
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'first_name', 'last_name']
+
+class MembroProjetoCreateUpdateSerializer(serializers.ModelSerializer):
+    # Permite que o frontend envie o ID do usuário
+    usuario = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+
+    class Meta:
+        model = MembroProjeto
+        fields = ['id', 'usuario', 'papel']
 
 
 class MembroProjetoSerializer(serializers.ModelSerializer):
@@ -66,14 +81,28 @@ class ProjetoSerializer(serializers.ModelSerializer):
         return usuario in obj.membros.all()
 
 
+# backend/api/serializers.py
+
 class ClienteSerializer(serializers.ModelSerializer):
-    """
-    Serializer para Clientes.
-    Usa o ProjetoSerializer aninhado, que agora é "inteligente" o suficiente
-    para adicionar a flag 'is_member' em cada projeto.
-    """
-    projetos = ProjetoSerializer(many=True, read_only=True)
+    # Usamos um método para ter controle total sobre quais projetos são listados
+    projetos = serializers.SerializerMethodField()
 
     class Meta:
         model = Cliente
         fields = ['id', 'nome', 'data_criacao', 'projetos']
+
+    def get_projetos(self, obj):
+        """
+        Este método filtra a lista de projetos de um cliente para retornar
+        apenas aqueles dos quais o usuário atual é membro.
+        """
+        # Pega o usuário logado que o ViewSet nos passou pelo contexto
+        usuario = self.context['request'].user
+        
+        # Filtra os projetos do cliente (obj)
+        projetos_acessiveis = obj.projetos.filter(membros=usuario)
+        
+        # Usa o ProjetoSerializer para formatar os dados corretamente
+        # É importante passar o contexto adiante, para que o 'is_member' do ProjetoSerializer funcione
+        serializer = ProjetoSerializer(projetos_acessiveis, many=True, context=self.context)
+        return serializer.data

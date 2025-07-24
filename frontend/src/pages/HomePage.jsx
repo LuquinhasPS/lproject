@@ -11,27 +11,34 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import NewProjectForm from '../components/NewProjectForm';
 import NewClientForm from '../components/NewClientForm';
+import NewProjectForm from '../components/NewProjectForm';
 import ProjectCard from '../components/ProjectCard';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 
 function HomePage() {
     const [clients, setClients] = useState([]);
+    const [allClientsForForm, setAllClientsForForm] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
     const [clientMenuAnchor, setClientMenuAnchor] = useState(null);
     const [editingClient, setEditingClient] = useState(null);
     const [editingClientName, setEditingClientName] = useState("");
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
     const [addingProjectToClient, setAddingProjectToClient] = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const clientsResponse = await apiClient.get('/clientes/');
-                setClients(clientsResponse.data);
+                const [dashboardResponse, allClientsResponse] = await Promise.all([
+                    apiClient.get('/clientes/'),
+                    apiClient.get('/clientes/?all=true')
+                ]);
+                setClients(dashboardResponse.data);
+                setAllClientsForForm(allClientsResponse.data);
             } catch (err) {
                 setError('Não foi possível carregar os dados do dashboard.');
             } finally {
@@ -41,62 +48,60 @@ function HomePage() {
         fetchData();
     }, []);
 
-    // --- FUNÇÃO onDragEnd FINAL E COMPLETA ---
     const onDragEnd = (result) => {
         const { source, destination, draggableId, type } = result;
-
-        if (!destination) return;
-        if (source.droppableId === destination.droppableId && source.index === destination.index) return;
-        
-        // LÓGICA PARA ARRASTAR COLUNAS DE CLIENTES
+        if (!destination || (source.droppableId === destination.droppableId && source.index === destination.index)) return;
         if (type === 'COLUMN') {
             const newClientsOrder = Array.from(clients);
             const [reorderedItem] = newClientsOrder.splice(source.index, 1);
             newClientsOrder.splice(destination.index, 0, reorderedItem);
-            setClients(newClientsOrder); // Atualiza o estado com a nova ordem das colunas
+            setClients(newClientsOrder);
             return;
         }
-
-        // LÓGICA PARA ARRASTAR CARDS DE PROJETO
         if (type === 'PROJECT') {
             const startClient = clients.find(c => `client-${c.id}` === source.droppableId);
             const finishClient = clients.find(c => `client-${c.id}` === destination.droppableId);
-
-            if (startClient === finishClient) { // Reordenar na mesma coluna
+            const projectId = parseInt(draggableId.replace('project-', ''));
+            if (startClient === finishClient) {
                 const newProjects = Array.from(startClient.projetos);
                 const [reorderedItem] = newProjects.splice(source.index, 1);
                 newProjects.splice(destination.index, 0, reorderedItem);
                 const newClients = clients.map(c => c.id === startClient.id ? { ...c, projetos: newProjects } : c);
                 setClients(newClients);
-            } else { // Mover entre colunas
+            } else {
                 const startProjects = Array.from(startClient.projetos);
                 const [draggedProject] = startProjects.splice(source.index, 1);
                 const finishProjects = Array.from(finishClient.projetos);
                 finishProjects.splice(destination.index, 0, draggedProject);
-                
                 const newClientsState = clients.map(c => {
                     if (c.id === startClient.id) return { ...c, projetos: startProjects };
                     if (c.id === finishClient.id) return { ...c, projetos: finishProjects };
                     return c;
                 });
                 setClients(newClientsState);
-                
-                const projectId = parseInt(draggableId.replace('project-', ''));
                 apiClient.patch(`/projetos/${projectId}/`, { cliente: finishClient.id });
             }
         }
     };
 
-    const handleClientAdded = (newClient) => { setClients(c => [...c, { ...newClient, projetos: [] }]); setIsClientModalOpen(false); };
-    const handleClientMenuOpen = (event, client) => { setClientMenuAnchor({ el: event.currentTarget, client: client }); };
+    const handleClientAdded = (newClient) => {
+        const newClientWithProjects = { ...newClient, projetos: [] };
+        setClients(current => [...current, newClientWithProjects]);
+        setAllClientsForForm(current => [...current, newClient]);
+        setIsClientModalOpen(false);
+    };
+
+    const handleClientMenuOpen = (event, client) => setClientMenuAnchor({ el: event.currentTarget, client: client });
     const handleClientMenuClose = () => setClientMenuAnchor(null);
     const handleOpenEditDialog = () => { setEditingClient(clientMenuAnchor.client); setEditingClientName(clientMenuAnchor.client.nome); handleClientMenuClose(); };
-    
+
     const handleUpdateClient = async () => {
         if (!editingClient || !editingClientName.trim()) return;
         try {
             const response = await apiClient.patch(`/clientes/${editingClient.id}/`, { nome: editingClientName });
-            setClients(currentClients => currentClients.map(c => (c.id === editingClient.id ? { ...c, ...response.data, projetos: c.projetos } : c)));
+            const updateList = (list) => list.map(c => (c.id === editingClient.id ? { ...c, ...response.data, projetos: c.projetos } : c));
+            setClients(updateList);
+            setAllClientsForForm(updateList);
             setEditingClient(null);
         } catch (error) { alert("Não foi possível atualizar o cliente."); }
     };
@@ -107,32 +112,33 @@ function HomePage() {
         if (window.confirm(`Tem certeza que deseja deletar "${clientToDelete.nome}" e TODOS os seus projetos?`)) {
             try {
                 await apiClient.delete(`/clientes/${clientToDelete.id}/`);
-                setClients(currentClients => currentClients.filter(c => c.id !== clientToDelete.id));
+                setClients(current => current.filter(c => c.id !== clientToDelete.id));
+                setAllClientsForForm(current => current.filter(c => c.id !== clientToDelete.id));
             } catch (error) { alert("Não foi possível deletar o cliente."); }
         }
     };
 
     const handleProjectAdded = (newProject) => {
-        setClients(currentClients =>
-            currentClients.map(client => {
-                if (client.id === newProject.cliente) {
-                    return { ...client, projetos: [newProject, ...(client.projetos || [])] };
-                }
-                return client;
-            })
-        );
+        const updateList = (list) => {
+            let clientExists = list.some(c => c.id === newProject.cliente);
+            if (clientExists) {
+                return list.map(client => client.id === newProject.cliente ? { ...client, projetos: [newProject, ...(client.projetos || [])] } : client);
+            }
+            const newClientData = allClientsForForm.find(c => c.id === newProject.cliente);
+            return [...list, { ...newClientData, projetos: [newProject] }];
+        };
+        setClients(updateList(clients));
+        setAllClientsForForm(currentList => updateList(currentList));
+        setIsProjectModalOpen(false);
         setAddingProjectToClient(null);
     };
 
     const handleUpdateProject = async (projectId, newData, clientId) => {
         try {
             const response = await apiClient.patch(`/projetos/${projectId}/`, newData);
-            setClients(currentClients => currentClients.map(c => {
-                if (c.id === clientId) {
-                    return { ...c, projetos: c.projetos.map(p => p.id === projectId ? response.data : p) };
-                }
-                return c;
-            }));
+            const updateList = (list) => list.map(c => c.id === clientId ? { ...c, projetos: c.projetos.map(p => p.id === projectId ? response.data : p) } : c);
+            setClients(updateList);
+            setAllClientsForForm(updateList);
         } catch (error) { alert("Não foi possível atualizar o projeto."); }
     };
 
@@ -140,27 +146,57 @@ function HomePage() {
         if (!window.confirm("Tem certeza que deseja deletar este projeto?")) return;
         try {
             await apiClient.delete(`/projetos/${projectId}/`);
-            setClients(currentClients => currentClients.map(c => {
-                if (c.id === clientId) {
-                    return { ...c, projetos: c.projetos.filter(p => p.id !== projectId) };
-                }
-                return c;
-            }));
+            const updateList = (list) => list.map(c => c.id === clientId ? { ...c, projetos: c.projetos.filter(p => p.id !== projectId) } : c);
+            setClients(updateList);
+            setAllClientsForForm(updateList);
         } catch (error) { alert("Não foi possível deletar o projeto."); }
     };
 
     const handleTaskAdd = (newTask, projectId) => {
-        setClients(currentClients => currentClients.map(c => ({
+        const updateList = (list) => list.map(c => ({
             ...c,
             projetos: c.projetos.map(p => p.id === projectId ? { ...p, tarefas: [...(p.tarefas || []), newTask] } : p)
-        })));
+        }));
+        setClients(updateList);
+        setAllClientsForForm(updateList);
+    };
+
+    const handleDeleteTask = async (taskId, projectId) => {
+        if (!window.confirm("Tem certeza?")) return;
+        try {
+            await apiClient.delete(`/tarefas/${taskId}/`);
+            const updateList = (list) => list.map(client => ({
+                ...client,
+                projetos: client.projetos.map(p => {
+                    if (p.id === projectId) {
+                        return { ...p, tarefas: p.tarefas.filter(t => t.id !== taskId && t.tarefa_pai !== taskId) };
+                    }
+                    return p;
+                })
+            }));
+            setClients(updateList);
+            setAllClientsForForm(updateList);
+        } catch (error) { alert("Não foi possível deletar a tarefa."); }
+    };
+
+    const handleEditTask = async (taskId, newDescription, projectId) => {
+        try {
+            const response = await apiClient.patch(`/tarefas/${taskId}/`, { descricao: newDescription });
+            const updatedTask = response.data;
+            const updateList = (list) => list.map(client => ({
+                ...client,
+                projetos: client.projetos.map(p => p.id === projectId ? { ...p, tarefas: p.tarefas.map(t => t.id === updatedTask.id ? updatedTask : t) } : p)
+            }));
+            setClients(updateList);
+            setAllClientsForForm(updateList);
+        } catch (error) { alert("Não foi possível editar a tarefa."); }
     };
 
     const handleToggleTask = async (taskToToggle) => {
         try {
             const response = await apiClient.patch(`/tarefas/${taskToToggle.id}/`, { concluida: !taskToToggle.concluida });
             const updatedTask = response.data;
-            setClients(currentClients => currentClients.map(client => ({
+            const updateList = (list) => list.map(client => ({
                 ...client,
                 projetos: client.projetos.map(p => {
                     if (p.id === updatedTask.projeto) {
@@ -177,56 +213,11 @@ function HomePage() {
                     }
                     return p;
                 })
-            })));
+            }));
+            setClients(updateList);
+            setAllClientsForForm(updateList);
         } catch (error) { console.error("Erro ao dar toggle na tarefa:", error); }
     };
-
-    const handleEditTask = async (taskId, newDescription, projectId) => {
-        try {
-            const response = await apiClient.patch(`/tarefas/${taskId}/`, { descricao: newDescription });
-            const updatedTask = response.data;
-            setClients(currentClients => currentClients.map(client => ({
-                ...client,
-                projetos: client.projetos.map(p => {
-                    if (p.id === projectId) {
-                        return { ...p, tarefas: p.tarefas.map(t => t.id === updatedTask.id ? updatedTask : t) };
-                    }
-                    return p;
-                })
-            })));
-        } catch (error) { console.error("Erro ao editar a tarefa:", error); }
-    };
-
-// Em frontend/src/pages/HomePage.jsx
-
-const handleDeleteTask = async (taskId, projectId) => {
-    if (!window.confirm("Tem certeza que deseja deletar esta tarefa?")) return;
-    try {
-        await apiClient.delete(`/tarefas/${taskId}/`);
-
-        setClients(currentClients =>
-            currentClients.map(client => ({
-                ...client,
-                // Mapeia cada projeto dentro de cada cliente
-                projetos: client.projetos.map(p => {
-                    // Se este não for o projeto da tarefa deletada, não faz nada
-                    if (p.id !== projectId) {
-                        return p;
-                    }
-
-                    // Se for o projeto correto, retorna o projeto com a lista de tarefas filtrada
-                    // A CORREÇÃO ESTÁ AQUI: (p.tarefas || []) garante que nunca chamaremos .filter() em undefined
-                    const updatedTasks = (p.tarefas || []).filter(t => t.id !== taskId && t.tarefa_pai !== taskId);
-                    
-                    return { ...p, tarefas: updatedTasks };
-                })
-            }))
-        );
-    } catch (error) {
-        console.error("Erro ao deletar a tarefa:", error);
-        alert("Não foi possível deletar a tarefa.");
-    }
-};
 
     if (loading) return <CircularProgress />;
     if (error) return <Alert severity="error">{error}</Alert>;
@@ -236,29 +227,34 @@ const handleDeleteTask = async (taskId, projectId) => {
             <div>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                     <Typography variant="h4">Dashboard de Projetos</Typography>
-                    <Button variant="contained" onClick={() => setIsClientModalOpen(true)}>Adicionar Cliente</Button>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button variant="outlined" onClick={() => setIsClientModalOpen(true)}>Adicionar Cliente</Button>
+                        <Button variant="contained" onClick={() => setIsProjectModalOpen(true)}>Novo Projeto</Button>
+                    </Box>
                 </Box>
+                
                 <Droppable droppableId="all-clients" direction="horizontal" type="COLUMN">
                     {(provided) => (
                         <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ display: 'flex', flexDirection: 'row', overflowX: 'auto', gap: 2, p: 1, mt: 2, alignItems: 'flex-start', height: 'calc(100vh - 150px)' }}>
                             {clients.map((client, index) => (
                                 <Draggable key={client.id} draggableId={`client-col-${client.id}`} index={index}>
                                     {(provided) => (
-                                        <div ref={provided.innerRef} {...provided.draggableProps} style={{ ...provided.draggableProps.style }}>
-                                            <Paper elevation={3} sx={{ minWidth: '340px', width: '340px', backgroundColor: '#f4f5f7', display: 'flex', flexDirection: 'column' }}>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1 }} {...provided.dragHandleProps}>
+                                        <div ref={provided.innerRef} {...provided.draggableProps} style={{...provided.draggableProps.style}}>
+                                            <Paper elevation={3} sx={{ minWidth: '340px', width: '340px', backgroundColor: '#f4f5f7', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, cursor: 'grab' }} {...provided.dragHandleProps}>
                                                     <Typography variant="h6" sx={{ p: 1 }}>{client.nome}</Typography>
-                                                    <Tooltip title="Adicionar Novo Projeto"><IconButton size="small" onClick={() => setAddingProjectToClient(client.id)}><AddIcon /></IconButton></Tooltip>
-                                                    <IconButton size="small" onClick={(e) => handleClientMenuOpen(e, client)}><MoreVertIcon /></IconButton>
+                                                    <Box>
+                                                        <Tooltip title="Adicionar Projeto a este Cliente"><IconButton size="small" onClick={() => setAddingProjectToClient(client.id)}><AddIcon /></IconButton></Tooltip>
+                                                        <IconButton size="small" onClick={(e) => handleClientMenuOpen(e, client)}><MoreVertIcon /></IconButton>
+                                                    </Box>
                                                 </Box>
                                                 <Droppable droppableId={`client-${client.id}`} type="PROJECT">
-                                                    {(provided) => (
-                                                        <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ overflowY: 'auto', flexGrow: 1, p: 1, minHeight: '100px' }}>
+                                                    {(providedDrop) => (
+                                                        <Box ref={providedDrop.innerRef} {...providedDrop.droppableProps} sx={{ overflowY: 'auto', flexGrow: 1, p: 1, minHeight: '100px' }}>
                                                             {client.projetos?.map((project, projIndex) => (
                                                                 <Draggable key={project.id} draggableId={`project-${project.id}`} index={projIndex}>
-                                                                    {(provided, snapshot) => (
-                                                                        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} style={{ ...provided.draggableProps.style, boxShadow: snapshot.isDragging ? '0px 4px 8px rgba(0,0,0,0.2)' : 'none' }}>
-                                                                            {/* --- AQUI ESTÁ A CORREÇÃO --- */}
+                                                                    {(providedDrag) => (
+                                                                        <div ref={providedDrag.innerRef} {...providedDrag.draggableProps} {...providedDrag.dragHandleProps}>
                                                                             <ProjectCard
                                                                                 project={project}
                                                                                 onProjectUpdate={(newData) => handleUpdateProject(project.id, newData, client.id)}
@@ -272,7 +268,7 @@ const handleDeleteTask = async (taskId, projectId) => {
                                                                     )}
                                                                 </Draggable>
                                                             ))}
-                                                            {provided.placeholder}
+                                                            {providedDrop.placeholder}
                                                         </Box>
                                                     )}
                                                 </Droppable>
@@ -287,24 +283,36 @@ const handleDeleteTask = async (taskId, projectId) => {
                 </Droppable>
                 
                 <Menu anchorEl={clientMenuAnchor?.el} open={Boolean(clientMenuAnchor)} onClose={handleClientMenuClose}>
-                    <MenuItem onClick={handleOpenEditDialog}>Editar Nome</MenuItem>
-                    <MenuItem onClick={handleDeleteClient} sx={{ color: 'error.main' }}>Deletar Cliente</MenuItem>
+                    <MenuItem onClick={handleOpenEditDialog}><ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>Editar Nome</MenuItem>
+                    <MenuItem onClick={handleDeleteClient} sx={{ color: 'error.main' }}><ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>Deletar Cliente</MenuItem>
                 </Menu>
 
-                <Dialog open={Boolean(editingClient)} onClose={() => setEditingClient(null)}>
+                <Dialog open={Boolean(editingClient)} onClose={() => setEditingClient(null)} fullWidth>
                     <DialogTitle>Editar Nome do Cliente</DialogTitle>
-                    <DialogContent><TextField autoFocus margin="dense" label="Nome" type="text" fullWidth variant="standard" value={editingClientName} onChange={(e) => setEditingClientName(e.target.value)} /></DialogContent>
-                    <DialogActions><Button onClick={() => setEditingClient(null)}>Cancelar</Button><Button onClick={handleUpdateClient}>Salvar</Button></DialogActions>
+                    <DialogContent><TextField autoFocus margin="dense" label="Nome do Cliente" type="text" fullWidth variant="standard" value={editingClientName} onChange={(e) => setEditingClientName(e.target.value)} /></DialogContent>
+                    <DialogActions><Button onClick={() => setEditingClient(null)}>Cancelar</Button><Button onClick={handleUpdateClient} variant="contained">Salvar</Button></DialogActions>
                 </Dialog>
 
                 <Dialog open={isClientModalOpen} onClose={() => setIsClientModalOpen(false)}>
                     <DialogTitle>Adicionar Novo Cliente</DialogTitle>
                     <DialogContent><NewClientForm onClientAdded={handleClientAdded} onCancel={() => setIsClientModalOpen(false)} /></DialogContent>
                 </Dialog>
-
-                <Dialog open={Boolean(addingProjectToClient)} onClose={() => setAddingProjectToClient(null)}>
+                
+                {/* DIALOG PRINCIPAL DE NOVO PROJETO */}
+                <Dialog open={isProjectModalOpen} onClose={() => setIsProjectModalOpen(false)} fullWidth maxWidth="sm">
                     <DialogTitle>Adicionar Novo Projeto</DialogTitle>
-                    <DialogContent><NewProjectForm clienteId={addingProjectToClient} clients={clients} onProjectAdded={handleProjectAdded} onCancel={() => setAddingProjectToClient(null)} /></DialogContent>
+                    <DialogContent>
+                        {/* AQUI ESTÁ A CORREÇÃO: Passa 'allClientsForForm' */}
+                        <NewProjectForm clients={allClientsForForm} onProjectAdded={handleProjectAdded} onCancel={() => setIsProjectModalOpen(false)} />
+                    </DialogContent>
+                </Dialog>
+                
+                {/* DIALOG PARA O BOTÃO '+' DENTRO DA COLUNA */}
+                <Dialog open={Boolean(addingProjectToClient)} onClose={() => setAddingProjectToClient(null)} fullWidth maxWidth="sm">
+                    <DialogTitle>Novo Projeto para {clients.find(c => c.id === addingProjectToClient)?.nome}</DialogTitle>
+                    <DialogContent>
+                        <NewProjectForm clienteId={addingProjectToClient} onProjectAdded={handleProjectAdded} onCancel={() => setAddingProjectToClient(null)} />
+                    </DialogContent>
                 </Dialog>
             </div>
         </DragDropContext>

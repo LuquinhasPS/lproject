@@ -1,7 +1,7 @@
 // frontend/src/pages/LoginPage.jsx
 
 import React, { useState } from 'react';
-import { useAuth } from '../context/useAuth';
+import { useAuth } from '../context/useAuth.js';
 // 1. IMPORTAR useLocation
 import { useNavigate, useLocation } from 'react-router-dom';
 

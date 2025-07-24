@@ -1,79 +1,70 @@
 # backend/api/views.py
 
 from rest_framework import viewsets, permissions
-from .models import Cliente, Projeto, Tarefa
-from .serializers import ClienteSerializer, ProjetoSerializer, TarefaSerializer
-from django.db.models import Q # <-- 1. IMPORTE O 'Q' PARA CONSULTAS COMPLEXAS
+from django.contrib.auth.models import User
 from django.db import transaction
+from django.db.models import Q
+from .models import Cliente, Projeto, Tarefa, MembroProjeto
+from .serializers import (
+    ClienteSerializer, ProjetoSerializer, TarefaSerializer, UserSerializer,
+    MembroProjetoCreateUpdateSerializer
+)
+from .permissions import IsOwnerOrReadOnly, IsProjectAdminOrReadOnly, IsProjectAdmin
 
-# --- ClienteViewSet e ProjetoViewSet continuam os mesmos ---
-
-class ClienteViewSet(viewsets.ModelViewSet):
-    queryset = Cliente.objects.all().order_by('nome')
-    serializer_class = ClienteSerializer
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = User.objects.all().order_by('username')
+    serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+class MembroProjetoViewSet(viewsets.ModelViewSet):
+    serializer_class = MembroProjetoCreateUpdateSerializer
+    permission_classes = [IsProjectAdmin]
+    def get_queryset(self):
+        return MembroProjeto.objects.filter(projeto_id=self.kwargs['projeto_pk'])
+    def perform_create(self, serializer):
+        serializer.save(projeto_id=self.kwargs['projeto_pk'])
+
+class ClienteViewSet(viewsets.ModelViewSet):
+    serializer_class = ClienteSerializer
+    permission_classes = [IsOwnerOrReadOnly]
+
+    def get_queryset(self):
+        usuario = self.request.user
+        show_all = self.request.query_params.get('all', 'false').lower() == 'true'
+        if show_all:
+            return Cliente.objects.all().order_by('nome')
+        else:
+            projetos_do_usuario = usuario.projetos_participados.all()
+            ids_clientes = projetos_do_usuario.values_list('cliente_id', flat=True).distinct()
+            return Cliente.objects.filter(id__in=ids_clientes)
+
+    def perform_create(self, serializer):
+        serializer.save(criado_por=self.request.user)
     def get_serializer_context(self):
         return {'request': self.request}
-
 
 class ProjetoViewSet(viewsets.ModelViewSet):
     serializer_class = ProjetoSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
+    permission_classes = [IsProjectAdminOrReadOnly]
     def get_queryset(self):
-        return self.request.user.projetos_participados.all().order_by('-data_criacao').distinct()
-
+        return self.request.user.projetos_participados.all().distinct()
     def perform_create(self, serializer):
-        # Simplificando a criação de membro
         projeto = serializer.save()
         projeto.membros.add(self.request.user, through_defaults={'papel': 'ADMIN'})
-
     def get_serializer_context(self):
         return {'request': self.request}
-
-
-
 
 class TarefaViewSet(viewsets.ModelViewSet):
     serializer_class = TarefaSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        """
-        Retorna todas as tarefas (pai e filhas) de todos os projetos
-        aos quais o usuário tem acesso.
-        """
         usuario = self.request.user
-
-        # Pega todos os projetos que o usuário pode acessar
         projetos_acessiveis = usuario.projetos_participados.all()
-
-        # Retorna todas as tarefas que pertencem a esses projetos
         return Tarefa.objects.filter(projeto__in=projetos_acessiveis)
-
-    def perform_create(self, serializer):
-        """
-        Garante que, ao criar uma subtarefa, ela seja associada ao projeto correto.
-        """
-        tarefa_pai = serializer.validated_data.get('tarefa_pai', None)
-        projeto = serializer.validated_data.get('projeto', None)
-        if tarefa_pai and not projeto:
-            serializer.save(projeto=tarefa_pai.projeto)
-        else:
-            serializer.save()
-
-        instance = serializer.instance
-        print("--- NOVA TAREFA CRIADA ---")
-        print(f"  ID da Tarefa: {instance.id}")
-        print(f"  Descrição: {instance.descricao}")
-        print(f"  ID da Tarefa Pai: {instance.tarefa_pai_id}")
-        print(f"  ID do Projeto Salvo: {instance.projeto_id}") # <-- LINHA MAIS IMPORTANTE
-        print("--------------------------")
 
     @transaction.atomic
     def update(self, request, *args, **kwargs):
-        # A lógica de cascata para o 'concluida' continua a mesma
         response = super().update(request, *args, **kwargs)
         if response.status_code < 400 and 'concluida' in request.data:
             instance = self.get_object()

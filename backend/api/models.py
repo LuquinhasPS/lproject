@@ -2,11 +2,13 @@
 
 from django.db import models
 from django.contrib.auth.models import User # <-- IMPORTAR ESTA LINHA
-
+from django.conf import settings # Importe settings
 
 class Cliente(models.Model):
     nome = models.CharField(max_length=100, unique=True)
     data_criacao = models.DateTimeField(auto_now_add=True)
+    # Adicione este campo para sabermos quem é o dono do cliente
+    criado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
 
     def __str__(self):
         return self.nome

@@ -1,0 +1,21 @@
+# Arquivo: backend/requirements.txt
+
+# --- Core do Django ---
+Django==5.2.4
+djangorestframework==3.15.2
+
+# --- API e Autenticação ---
+django-cors-headers==4.4.0
+djangorestframework-simplejwt==5.3.1
+drf-nested-routers==0.93.4
+
+# --- Ferramentas para Deploy/Produção ---
+gunicorn==22.0.0
+python-decouple==3.8
+whitenoise==6.7.0
+
+# --- Dependências de Suporte ---
+asgiref==3.8.1
+pytz==2024.1
+sqlparse==0.5.0
+tzdata==2024.1

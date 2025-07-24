@@ -1,7 +1,7 @@
 // frontend/src/components/Navbar.jsx
 
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/useAuth';
+import { useAuth } from '../context/useAuth.js';
 import { Button } from '@mui/material';
 
 function Navbar() {

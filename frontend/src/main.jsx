@@ -11,6 +11,7 @@ import LoginPage from './pages/LoginPage.jsx';
 import ClientDetailPage from './pages/ClientDetailPage.jsx';
 import ProjectDetailPage from './pages/ProjectDetailPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import ClientsPage from './pages/ClientsPage.jsx';
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -22,7 +23,7 @@ const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: "/", element: <HomePage /> },
-          { path: "clientes", element: <ClientDetailPage /> }, // Ajuste se tiver uma página de lista separada
+          { path: "clientes", element: <ClientsPage /> },
           { path: "clientes/:clientId", element: <ClientDetailPage /> },
           { path: "projetos/:projectId", element: <ProjectDetailPage /> },
         ]
@@ -33,7 +34,7 @@ const router = createBrowserRouter([
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-// Renderiza a aplicação sem o StrictMode para máxima compatibilidade
+// Renderiza a aplicação SEM o StrictMode
 root.render(
   <AuthProvider>
     <RouterProvider router={router} />

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/useAuth';
+import { useAuth } from '../context/useAuth.js';
 import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 
 function AppLayout() {

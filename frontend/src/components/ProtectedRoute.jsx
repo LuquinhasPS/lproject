@@ -3,7 +3,7 @@
 import React from 'react';
 // 1. IMPORTAR useLocation
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/useAuth';
+import { useAuth } from '../context/useAuth.js';
 
 function ProtectedRoute() {
   const { authToken } = useAuth();
